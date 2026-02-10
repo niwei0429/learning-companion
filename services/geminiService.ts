@@ -1,4 +1,4 @@
-import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI, Chat, GenerateContentResponse, Modality } from "@google/genai";
 import { SYSTEM_INSTRUCTION } from "../constants";
 
 // Initialize Gemini Client
@@ -75,6 +75,50 @@ export const sendMessageToGemini = async (text: string, imageBase64?: string): P
   } catch (error) {
     console.error("Gemini API Error:", error);
     throw new Error("I had a little trouble connecting. Can you say that again?");
+  }
+};
+
+export const generateSpeech = async (text: string): Promise<string | undefined> => {
+  if (!apiKey) return undefined;
+  
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: { parts: [{ text }] }, 
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+          voiceConfig: {
+            // Puck is friendly and energetic, good for a companion
+            prebuiltVoiceConfig: { voiceName: 'Puck' },
+          },
+        },
+      },
+    });
+
+    return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+  } catch (error) {
+    console.error("TTS Error:", error);
+    return undefined;
+  }
+};
+
+export const getFunFact = async (context?: string): Promise<string> => {
+  if (!apiKey) return "Did you know? I can't think of a fact without my key!";
+  
+  try {
+    const prompt = `Give me a short, mind-blowing "Did you know?" fun fact for a 10-year-old boy. ${context ? `Relate it to: "${context}".` : "Make it about space, animals, robots, or nature."} Keep it under 30 words and include a fun emoji. Start directly with the fact.`;
+    
+    // Independent generation to not pollute chat context
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+    });
+
+    return response.text || "Did you know? Space is completely silent because there is no air! 🌌";
+  } catch (error) {
+    console.error("Fun Fact Error:", error);
+    return "Did you know? Honey never spoils! You can eat honey that is 3,000 years old! 🍯";
   }
 };
 

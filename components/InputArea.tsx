@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Image as ImageIcon, X, Mic, MicOff, Loader2 } from 'lucide-react';
+import { Send, Image as ImageIcon, X, Mic, MicOff, Loader2, AlertCircle } from 'lucide-react';
 
 interface InputAreaProps {
   onSendMessage: (text: string, image?: string) => void;
@@ -10,8 +10,11 @@ const InputArea: React.FC<InputAreaProps> = ({ onSendMessage, isLoading }) => {
   const [inputText, setInputText] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
+  const [speechError, setSpeechError] = useState<string | null>(null);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -20,6 +23,16 @@ const InputArea: React.FC<InputAreaProps> = ({ onSendMessage, isLoading }) => {
       textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
     }
   }, [inputText]);
+
+  // Cleanup speech recognition on unmount
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+        recognitionRef.current = null;
+      }
+    };
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -34,6 +47,7 @@ const InputArea: React.FC<InputAreaProps> = ({ onSendMessage, isLoading }) => {
     onSendMessage(inputText, selectedImage || undefined);
     setInputText('');
     setSelectedImage(null);
+    setSpeechError(null);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
 
@@ -53,27 +67,29 @@ const InputArea: React.FC<InputAreaProps> = ({ onSendMessage, isLoading }) => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Basic Speech-to-Text implementation
-  const toggleListening = () => {
-    if (isLoading) return;
-
-    if (isListening) {
-      setIsListening(false);
-      // Logic to stop handled by 'end' event mostly or manual stop if we had the instance ref
-      // Since we create a new instance each time below, simple toggle logic is a bit disconnected 
-      // but sufficient for a "start listening" button. 
-      // For robust implementation we need to keep the recognition instance in a ref.
-      // Let's implement it properly below.
-    } else {
-      startListening();
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      try {
+        // use abort() to stop immediately and stop listening to incoming audio
+        recognitionRef.current.abort(); 
+      } catch (e) {
+        // Ignore errors if already stopped
+      }
+      recognitionRef.current = null;
     }
+    setIsListening(false);
   };
 
-  const recognitionRef = useRef<any>(null);
-
   const startListening = () => {
+    setSpeechError(null);
+    
+    // Stop any existing instance
+    if (recognitionRef.current) {
+      stopListening();
+    }
+
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      alert("Your browser doesn't support speech recognition. Try Chrome!");
+      setSpeechError("Speech recognition is not supported in this browser.");
       return;
     }
 
@@ -82,31 +98,75 @@ const InputArea: React.FC<InputAreaProps> = ({ onSendMessage, isLoading }) => {
     const recognition = new SpeechRecognition();
     recognitionRef.current = recognition;
 
-    recognition.continuous = false;
+    recognition.continuous = false; // Keep false to avoid complex state management for now
     recognition.interimResults = false;
     recognition.lang = 'en-US';
 
     recognition.onstart = () => {
       setIsListening(true);
+      setSpeechError(null);
     };
 
     recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
-      setInputText((prev) => (prev ? prev + ' ' + transcript : transcript));
+      setInputText((prev) => {
+        const spacer = prev.length > 0 && !prev.endsWith(' ') ? ' ' : '';
+        return prev + spacer + transcript;
+      });
+      // Automatically stop after one sentence/result if continuous is false
+      // UI update happens in onend
     };
 
     recognition.onerror = (event: any) => {
       console.error("Speech recognition error", event.error);
       setIsListening(false);
+      
+      if (event.error === 'aborted') {
+        // User stopped manually, no error
+        return;
+      }
+
+      switch (event.error) {
+        case 'network':
+          setSpeechError("Connection trouble. Please type your message.");
+          break;
+        case 'not-allowed':
+        case 'service-not-allowed':
+          setSpeechError("Microphone access denied. Please allow permissions.");
+          break;
+        case 'no-speech':
+          // Don't show error for no speech, just stop
+          break;
+        default:
+          setSpeechError(`Voice input error: ${event.error}`);
+      }
     };
 
     recognition.onend = () => {
       setIsListening(false);
+      // Don't nullify ref here immediately if we want to restart, 
+      // but since continuous=false, we are done.
+      recognitionRef.current = null;
     };
 
-    recognition.start();
+    try {
+      recognition.start();
+    } catch (err) {
+      console.error("Failed to start recognition", err);
+      setSpeechError("Could not start voice input.");
+      setIsListening(false);
+    }
   };
 
+  const toggleListening = () => {
+    if (isLoading) return;
+
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto w-full px-4 pb-4">
@@ -126,7 +186,7 @@ const InputArea: React.FC<InputAreaProps> = ({ onSendMessage, isLoading }) => {
       )}
 
       {/* Input Bar */}
-      <div className="relative flex items-end gap-2 bg-white p-2 rounded-3xl shadow-lg border border-primary-100 transition-shadow focus-within:shadow-xl focus-within:border-primary-300">
+      <div className={`relative flex items-end gap-2 bg-white p-2 rounded-3xl shadow-lg border transition-shadow focus-within:shadow-xl focus-within:border-primary-300 ${speechError ? 'border-red-300 ring-2 ring-red-50' : 'border-primary-100'}`}>
         
         {/* Image Upload Button */}
         <button 
@@ -180,8 +240,17 @@ const InputArea: React.FC<InputAreaProps> = ({ onSendMessage, isLoading }) => {
           {isLoading ? <Loader2 size={24} className="animate-spin" /> : <Send size={24} />}
         </button>
       </div>
+      
+      {/* Error Message */}
+      {speechError && (
+        <div className="mt-2 flex items-center justify-center gap-1 text-xs text-red-500 font-medium animate-fade-in">
+          <AlertCircle size={12} />
+          <span>{speechError}</span>
+        </div>
+      )}
+      
       <div className="text-center mt-2">
-         <p className="text-xs text-slate-400 font-medium">Leo guides you step-by-step. Let's think together!</p>
+         {!speechError && <p className="text-xs text-slate-400 font-medium">Leo guides you step-by-step. Let's think together!</p>}
       </div>
     </div>
   );
