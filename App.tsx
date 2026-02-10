@@ -131,10 +131,10 @@ const App: React.FC = () => {
         </button>
       </header>
 
-      {/* Main Content Area - Split View on Large Screens if needed, but keeping it simple focused stack */}
-      <main className="flex-1 flex flex-col relative z-10 max-w-5xl mx-auto w-full">
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col relative z-10 max-w-5xl mx-auto w-full overflow-hidden">
         
-        {/* Avatar Section - Sticky on top or floating */}
+        {/* Avatar Section */}
         <div className="flex justify-center py-6 shrink-0">
           <Avatar mood={mood} />
         </div>
@@ -150,4 +150,20 @@ const App: React.FC = () => {
               <div className="flex items-center gap-2 text-slate-400 text-sm ml-14 mb-4 animate-pulse">
                 <div className="w-2 h-2 bg-slate-300 rounded-full animate-bounce delay-0"></div>
                 <div className="w-2 h-2 bg-slate-300 rounded-full animate-bounce delay-150"></div>
-                <div className="w-2 h-2 bg-slate-300 rounded-full animate-bounce delay-3
+                <div className="w-2 h-2 bg-slate-300 rounded-full animate-bounce delay-300"></div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
+
+        {/* Input Area */}
+        <InputArea onSendMessage={handleSendMessage} isLoading={chatState.isLoading} />
+
+      </main>
+    </div>
+  );
+};
+
+export default App;
