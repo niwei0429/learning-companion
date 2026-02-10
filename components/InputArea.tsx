@@ -192,7 +192,6 @@ const InputArea: React.FC<InputAreaProps> = ({ onSendMessage, isLoading }) => {
         <button 
           onClick={() => fileInputRef.current?.click()}
           className="p-3 text-slate-400 hover:text-primary-500 hover:bg-primary-50 rounded-full transition-all"
-          title="Upload an image"
           disabled={isLoading}
         >
           <ImageIcon size={24} />
@@ -221,7 +220,6 @@ const InputArea: React.FC<InputAreaProps> = ({ onSendMessage, isLoading }) => {
         <button
           onClick={toggleListening}
           className={`p-3 rounded-full transition-all ${isListening ? 'text-red-500 bg-red-50 animate-pulse' : 'text-slate-400 hover:text-primary-500 hover:bg-primary-50'}`}
-          title="Speak"
           disabled={isLoading}
         >
           {isListening ? <MicOff size={22} /> : <Mic size={22} />}

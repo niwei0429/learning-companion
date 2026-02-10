@@ -65,8 +65,20 @@ const App: React.FC = () => {
       for (let i = 0; i < len; i++) {
         bytes[i] = binaryString.charCodeAt(i);
       }
+
+      // Gemini TTS returns raw PCM (16-bit signed integer, 24kHz mono)
+      // We must manually decode this as there are no headers for decodeAudioData to read.
+      const dataInt16 = new Int16Array(bytes.buffer);
+      const numChannels = 1;
+      const sampleRate = 24000;
       
-      const audioBuffer = await ctx.decodeAudioData(bytes.buffer);
+      const audioBuffer = ctx.createBuffer(numChannels, dataInt16.length, sampleRate);
+      const channelData = audioBuffer.getChannelData(0);
+      
+      // Convert Int16 to Float32 [-1.0, 1.0]
+      for (let i = 0; i < dataInt16.length; i++) {
+        channelData[i] = dataInt16[i] / 32768.0;
+      }
       
       // Play
       const source = ctx.createBufferSource();
@@ -222,7 +234,7 @@ const App: React.FC = () => {
 
       {/* Header */}
       <header className="relative z-10 flex items-center justify-between px-6 py-4 backdrop-blur-sm bg-white/70 sticky top-0 border-b border-primary-100">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 cursor-default" tabIndex={0}>
           <div className="p-2 bg-accent-500 rounded-xl text-white shadow-lg shadow-accent-500/30">
             <Sparkles size={24} />
           </div>
@@ -237,7 +249,6 @@ const App: React.FC = () => {
           <button
             onClick={() => handleGetFunFact()}
             className="p-2 rounded-full text-accent-600 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors"
-            title="Spark Curiosity"
           >
             <Lightbulb size={20} />
           </button>
@@ -247,7 +258,6 @@ const App: React.FC = () => {
           <button
             onClick={toggleMute}
             className={`p-2 rounded-full transition-colors ${isMuted ? 'text-slate-400 bg-slate-100' : 'text-primary-600 bg-primary-50'}`}
-            title={isMuted ? "Unmute" : "Mute"}
           >
             {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
           </button>
