@@ -1,0 +1,7 @@
+{
+  "name": "Copy of Leo - The Learning Companion",
+  "description": "A patient and warm AI learning companion designed to help a 10-year-old boy learn through guidance and encouragement, not just answers.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
